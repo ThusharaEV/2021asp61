@@ -1,0 +1,506 @@
+
+---
+title: "Dengue Virus Sequence Analysis Using R"
+author: "E.V. Thushara Sandeepani"
+date: "November 2026"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    theme: readable
+---
+
+```{r setup, include=FALSE}
+# Set the project root as the working directory
+knitr::opts_knit$set(root.dir = "..")
+
+# Set R Markdown chunk options
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+
+# Load required libraries
+library(Biostrings)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+
+# Create output folders
+dir.create("results", showWarnings = FALSE)
+dir.create("results/figures", recursive = TRUE, showWarnings = FALSE)
+```
+
+# Abstract
+
+Dengue is a mosquito-borne viral disease caused by four distinct serotypes: DENV-1, DENV-2, DENV-3, and DENV-4. This study compares publicly available dengue virus nucleotide sequences using R. The main objective is to investigate differences in sequence length, nucleotide composition, and GC content among the four serotypes. FASTA files were imported using the Biostrings package. Sequence quality was assessed using ambiguous nucleotide counts, and sequences containing more than 5% unknown nucleotides were excluded from the cleaned dataset. A separate analysis was conducted using sequences with lengths of at least 9,000 nucleotides. The results provide an overview of nucleotide-level differences among the four dengue virus serotypes.
+
+# 1. Introduction
+
+Dengue is a viral disease transmitted mainly by infected Aedes mosquitoes. It is a major public health concern in tropical and subtropical countries, including Sri Lanka.
+
+Dengue virus consists of four major serotypes: DENV-1, DENV-2, DENV-3, and DENV-4. Although these serotypes are related, their nucleotide sequences can contain genetic differences.
+
+Bioinformatics uses computational tools to analyse biological data. DNA sequence analysis helps researchers investigate nucleotide composition, sequence length, and GC content.
+
+R is a programming language widely used for statistical computing and bioinformatics. In this study, R is used to analyse dengue virus sequences and compare the four serotypes.
+
+## 1.1 Research Question
+
+How do nucleotide composition, genome length, and GC content differ among the four dengue virus serotypes?
+
+## 1.2 Objectives
+
+- Import dengue virus nucleotide sequences from FASTA files.
+- Assess the quality of the sequence data.
+- Calculate sequence lengths and nucleotide composition.
+- Calculate GC content for each sequence.
+- Compare the four dengue virus serotypes.
+- Visualise the results using appropriate graphs.
+- Interpret the observed differences.
+
+# 2. Data Description
+
+The dataset contains four FASTA files representing the four dengue virus serotypes.
+
+| Serotype | FASTA file |
+|---|---|
+| DENV-1 | DENV1.fasta |
+| DENV-2 | DENV2.fasta |
+| DENV-3 | DENV3.fasta |
+| DENV-4 | DENV4.fasta |
+
+FASTA is a commonly used format for storing nucleotide sequences. The sequences used in this project were obtained from public biological sequence resources.
+
+# 3. Methodology
+
+The analysis was performed using R and the following packages:
+
+- **Biostrings:** Importing and analysing biological sequences.
+- **dplyr:** Data manipulation and summarisation.
+- **ggplot2:** Creating visualisations.
+- **knitr:** Producing formatted tables in the report.
+
+## 3.1 Importing FASTA Files
+
+The four FASTA files were imported using the `readDNAStringSet()` function from the Biostrings package.
+
+```{r import-data}
+# Import the four dengue serotype FASTA files
+denv1 <- readDNAStringSet("data/DENV1.fasta")
+denv2 <- readDNAStringSet("data/DENV2.fasta")
+denv3 <- readDNAStringSet("data/DENV3.fasta")
+denv4 <- readDNAStringSet("data/DENV4.fasta")
+
+# Assign unique sequence identifiers
+names(denv1) <- paste0("DENV1_", seq_along(denv1))
+names(denv2) <- paste0("DENV2_", seq_along(denv2))
+names(denv3) <- paste0("DENV3_", seq_along(denv3))
+names(denv4) <- paste0("DENV4_", seq_along(denv4))
+
+# Combine all sequences
+all_sequences <- c(denv1, denv2, denv3, denv4)
+
+# Create serotype labels
+serotype <- c(
+  rep("DENV-1", length(denv1)),
+  rep("DENV-2", length(denv2)),
+  rep("DENV-3", length(denv3)),
+  rep("DENV-4", length(denv4))
+)
+
+# Display the number of sequences in each serotype
+cat("DENV-1:", length(denv1), "\n")
+cat("DENV-2:", length(denv2), "\n")
+cat("DENV-3:", length(denv3), "\n")
+cat("DENV-4:", length(denv4), "\n")
+cat("Total sequences:", length(all_sequences), "\n")
+```
+
+## 3.2 Sequence Length and Nucleotide Composition
+
+The length of each sequence was calculated using the `width()` function.
+
+Nucleotide frequencies were calculated for adenine (A), thymine (T), guanine (G), and cytosine (C).
+
+GC content was calculated as the combined percentage of guanine and cytosine.
+
+```{r sequence-analysis}
+# Calculate the length of each sequence
+sequence_length <- width(all_sequences)
+
+# Calculate nucleotide frequencies
+nuc_counts <- letterFrequency(
+  all_sequences,
+  letters = c("A", "T", "G", "C")
+)
+
+# Calculate total valid nucleotide count
+valid_bases <- rowSums(nuc_counts)
+
+# Calculate nucleotide percentages
+nuc_percent <- sweep(
+  nuc_counts,
+  1,
+  valid_bases,
+  "/"
+) * 100
+
+# Calculate the number of unknown N nucleotides
+n_counts <- as.numeric(
+  letterFrequency(all_sequences, letters = "N")
+)
+
+# Calculate GC content
+gc_content <- nuc_percent[, "G"] + nuc_percent[, "C"]
+
+# Create the main results data frame
+results <- data.frame(
+  Sequence = names(all_sequences),
+  Serotype = serotype,
+  Length = as.numeric(sequence_length),
+  N_Count = n_counts,
+  N_Percentage = (n_counts / as.numeric(sequence_length)) * 100,
+  A = nuc_percent[, "A"],
+  T = nuc_percent[, "T"],
+  G = nuc_percent[, "G"],
+  C = nuc_percent[, "C"],
+  GC_Content = gc_content
+)
+
+# Display the first six records
+head(results)
+```
+
+Note: Nucleotide percentages are calculated using A, T, G, and C counts as the denominator. Unknown and other ambiguous nucleotide symbols are not included in that denominator.
+
+## 3.3 Initial Data Summary
+
+The initial dataset was summarised to compare the number of sequences, average sequence length, and average GC content for each serotype.
+
+```{r initial-summary}
+initial_summary <- results %>%
+  group_by(Serotype) %>%
+  summarise(
+    Number_of_Sequences = n(),
+    Mean_Length = round(mean(Length), 2),
+    Mean_GC = round(mean(GC_Content), 2),
+    .groups = "drop"
+  )
+
+kable(
+  initial_summary,
+  caption = "Initial Sequence Summary by Serotype"
+)
+```
+
+## 3.4 Sequence Quality Assessment
+
+Unknown nucleotides are represented by the letter N. A high percentage of unknown nucleotides may reduce the reliability of nucleotide composition calculations.
+
+The percentage of unknown nucleotides was calculated for every sequence.
+
+```{r quality-assessment}
+n_quality <- results %>%
+  select(
+    Sequence,
+    Serotype,
+    Length,
+    N_Count,
+    N_Percentage
+  ) %>%
+  arrange(desc(N_Percentage))
+
+kable(
+  head(n_quality, 10),
+  digits = 2,
+  caption = "Sequences with the Highest Unknown Nucleotide Percentages"
+)
+```
+
+## 3.5 Data Cleaning
+
+Sequences containing more than 5% unknown N nucleotides were excluded.
+
+```{r data-cleaning}
+# Retain sequences with 5% or fewer N nucleotides
+results_clean <- results %>%
+  filter(N_Percentage <= 5)
+
+# Summarise the cleaned dataset
+cleaned_summary <- results_clean %>%
+  group_by(Serotype) %>%
+  summarise(
+    Number_of_Sequences = n(),
+    Minimum_Length = min(Length),
+    Maximum_Length = max(Length),
+    Mean_Length = round(mean(Length), 2),
+    .groups = "drop"
+  )
+
+kable(
+  cleaned_summary,
+  caption = "Summary of Cleaned Sequences"
+)
+
+cat(
+  "Original sequences:", nrow(results), "\n",
+  "Sequences after cleaning:", nrow(results_clean), "\n",
+  "Sequences removed:", nrow(results) - nrow(results_clean)
+)
+```
+
+## 3.6 Near-Complete Sequence Selection
+
+Dengue virus genomes are approximately 10,000 to 11,000 nucleotides long. To reduce the influence of short partial sequences, a separate analysis was performed using sequences with lengths of at least 9,000 nucleotides.
+
+This is an operational length threshold and does not confirm that every selected sequence is a complete genome.
+
+```{r near-complete-analysis}
+results_near_complete <- results_clean %>%
+  filter(Length >= 9000)
+
+near_complete_summary <- results_near_complete %>%
+  group_by(Serotype) %>%
+  summarise(
+    Number_of_Sequences = n(),
+    Mean_Length = round(mean(Length), 2),
+    Mean_GC = round(mean(GC_Content), 2),
+    Mean_A = round(mean(A), 2),
+    Mean_T = round(mean(T), 2),
+    Mean_G = round(mean(G), 2),
+    Mean_C = round(mean(C), 2),
+    .groups = "drop"
+  )
+
+kable(
+  near_complete_summary,
+  caption = "Near-Complete Sequence Summary by Serotype"
+)
+```
+
+# 4. Results and Visualisation
+
+## 4.1 GC Content Comparison
+
+The following boxplot compares the GC content distribution among the four serotypes using the cleaned dataset.
+
+```{r gc-plot, fig.width=8, fig.height=5}
+p1 <- ggplot(
+  results_clean,
+  aes(x = Serotype, y = GC_Content, fill = Serotype)
+) +
+  geom_boxplot() +
+  labs(
+    title = "GC Content Distribution by Dengue Serotype",
+    x = "Dengue Serotype",
+    y = "GC Content (%)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(p1)
+
+ggsave(
+  "results/figures/gc_content.png",
+  plot = p1,
+  width = 8,
+  height = 5
+)
+```
+
+## 4.2 Sequence Length Comparison
+
+This graph compares the sequence length distributions among the four serotypes.
+
+```{r length-plot, fig.width=8, fig.height=5}
+p2 <- ggplot(
+  results_clean,
+  aes(x = Serotype, y = Length, fill = Serotype)
+) +
+  geom_boxplot() +
+  labs(
+    title = "Sequence Length Distribution by Dengue Serotype",
+    x = "Dengue Serotype",
+    y = "Sequence Length (Nucleotides)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(p2)
+
+ggsave(
+  "results/figures/sequence_length.png",
+  plot = p2,
+  width = 8,
+  height = 5
+)
+```
+
+## 4.3 Near-Complete Sequence GC Content
+
+The following graph compares GC content among sequences with at least 9,000 nucleotides.
+
+```{r near-gc-plot, fig.width=8, fig.height=5}
+p3 <- ggplot(
+  results_near_complete,
+  aes(x = Serotype, y = GC_Content, fill = Serotype)
+) +
+  geom_boxplot() +
+  labs(
+    title = "GC Content of Near-Complete Dengue Sequences",
+    x = "Dengue Serotype",
+    y = "GC Content (%)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(p3)
+
+ggsave(
+  "results/figures/near_complete_gc_content.png",
+  plot = p3,
+  width = 8,
+  height = 5
+)
+```
+
+## 4.4 Near-Complete Sequence Length
+
+```{r near-length-plot, fig.width=8, fig.height=5}
+p4 <- ggplot(
+  results_near_complete,
+  aes(x = Serotype, y = Length, fill = Serotype)
+) +
+  geom_boxplot() +
+  labs(
+    title = "Length of Near-Complete Dengue Sequences",
+    x = "Dengue Serotype",
+    y = "Sequence Length (Nucleotides)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+print(p4)
+
+ggsave(
+  "results/figures/near_complete_sequence_length.png",
+  plot = p4,
+  width = 8,
+  height = 5
+)
+```
+
+## 4.5 Nucleotide Composition Comparison
+
+The table below presents the average A, T, G, and C percentages among the near-complete sequences.
+
+```{r nucleotide-summary}
+kable(
+  near_complete_summary %>%
+    select(
+      Serotype,
+      Number_of_Sequences,
+      Mean_A,
+      Mean_T,
+      Mean_G,
+      Mean_C
+    ),
+  digits = 2,
+  caption = "Average Nucleotide Composition of Near-Complete Sequences"
+)
+```
+
+# 5. Discussion
+
+The analysis was conducted to investigate differences in nucleotide composition, sequence length, and GC content among the four dengue virus serotypes.
+
+The initial dataset included sequences of different lengths. This indicates that the dataset contained both long and short sequence records. Short records may represent partial genome sequences, so comparisons using all records should be interpreted carefully.
+
+The quality assessment identified sequences containing unknown nucleotides. Sequences with more than 5% unknown nucleotides were excluded from the cleaned dataset. This step was performed to improve the reliability of the nucleotide composition calculations.
+
+A separate analysis was conducted using sequences with at least 9,000 nucleotides. This selection reduced the influence of short partial sequences and allowed a more comparable analysis of longer sequences. However, sequence length alone cannot confirm that a record represents a complete genome.
+
+The nucleotide composition results provide information about the proportions of adenine, thymine, guanine, and cytosine in the analysed sequences. GC content is another useful measure for comparing nucleotide composition.
+
+Differences among serotypes should be interpreted with consideration of the dataset size. The number of sequences available for each serotype may differ. The geographical origin, collection date, and quality of the original sequence records may also influence the results.
+
+This analysis is descriptive. It does not establish that the observed differences are statistically significant or that they cause differences in disease severity or transmission.
+
+# 6. Conclusion
+
+This study performed a comparative analysis of dengue virus nucleotide sequences using R.
+
+The workflow included FASTA file import, sequence length calculation, nucleotide composition analysis, GC content calculation, sequence quality assessment, data cleaning, and visualisation.
+
+The analysis provides an introductory computational comparison of DENV-1, DENV-2, DENV-3, and DENV-4. It also demonstrates how R and bioinformatics packages can be used to investigate biological sequence data.
+
+Future work could include analysing a larger number of sequences, incorporating collection dates and geographical information, and performing additional statistical or sequence alignment analyses.
+
+# 7. Reproducibility
+
+The analysis was performed using R and RStudio.
+
+The following packages were used:
+
+- Biostrings
+- dplyr
+- ggplot2
+- knitr
+
+The four FASTA input files are stored in the `data/` folder. The R Markdown analysis file is stored in the `code/` folder.
+
+The generated tables and graphs are saved in the `results/` folder.
+
+## 7.1 Saving Analysis Results
+
+```{r save-results}
+# Save the original sequence results
+write.csv(
+  results,
+  "results/sequence_results.csv",
+  row.names = FALSE
+)
+
+# Save the cleaned sequence results
+write.csv(
+  results_clean,
+  "results/cleaned_sequence_results.csv",
+  row.names = FALSE
+)
+
+# Save the initial summary
+write.csv(
+  initial_summary,
+  "results/composition_summary.csv",
+  row.names = FALSE
+)
+
+# Save the near-complete sequences
+write.csv(
+  results_near_complete,
+  "results/near_complete_sequences.csv",
+  row.names = FALSE
+)
+
+# Save the near-complete summary
+write.csv(
+  near_complete_summary,
+  "results/near_complete_summary.csv",
+  row.names = FALSE
+)
+
+cat("All analysis result files were saved successfully.")
+```
+
+# 8. References
+
+1. National Center for Biotechnology Information (NCBI). GenBank. https://www.ncbi.nlm.nih.gov/genbank/
+
+2. Bioconductor. Biostrings: Efficient manipulation of biological strings. https://bioconductor.org/packages/Biostrings/
+
+3. Wickham, H. ggplot2: Elegant Graphics for Data Analysis. https://ggplot2.tidyverse.org/
+
+4. Wickham, H., François, R., Henry, L., Müller, K., and Vaughan, D. dplyr: A Grammar of Data Manipulation. https://dplyr.tidyverse.org/
