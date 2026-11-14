@@ -44,9 +44,7 @@ Data collection and analysis are in progress.
 
 ## 7. results 
 ### GC Content Comparison
-
 ![GC Content](results/figures/near_complete_gc_content.png)
 
 ### Sequence Length Comparison
-
 ![Sequence Length](results/figures/near_complete_sequence_length.png)
